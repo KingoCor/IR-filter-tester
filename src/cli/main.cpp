@@ -1,7 +1,10 @@
 #include "core/frame_stream.hpp"
 #include "metrics/simple_metrics.hpp"
+#include "metrics/psnr.hpp"
 #include "noises/detector_nonuniformity.hpp"
+#include "filters/quantile_nuc.hpp"
 #include "filters/paper_nuc.hpp"
+#include "filters/column_hist_nuc.hpp"
 
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -10,8 +13,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-
-namespace {
 
 	cv::Mat toU8(const cv::Mat& f) {
 		cv::Mat f32;
@@ -51,7 +52,7 @@ namespace {
 		return true;
 	}
 
-} // namespace
+ // namespace
 
 int main(int argc, char** argv) {
 	if (argc < 2) { std::cerr << "usage: ir_filter_tester <path>\n"; return 1; }
@@ -74,23 +75,28 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	irfilter::PaperNUC::Params p;
-	p.dump_dir = "nuc_debug";
+	irfilter::ColumnHistNUC::Params p;
+	p.radius = 20;
+	p.sigma = 7;
 
 	irfilter::DetectorNonuniformityNoise noisy(stream, {}, /*seed=*/42);
-	irfilter::PaperNUC nuc(noisy, p);
+	//irfilter::PaperNUC nuc(noisy);
+	irfilter::ColumnHistNUC nuc(noisy, p);
 	irfilter::MAE mae;
 	irfilter::MSE mse;
+	irfilter::PSNR psnr;
 
 	const double maeIn  = irfilter::evaluate(mae, stream, noisy);
 	const double mseIn  = irfilter::evaluate(mse, stream, noisy);
+	const double psnrIn  = irfilter::evaluate(psnr, stream, noisy);
 	const double maeOut = irfilter::evaluate(mae, stream, nuc);
 	const double mseOut = irfilter::evaluate(mse, stream, nuc);
+	const double psnrOut  = irfilter::evaluate(psnr, stream, nuc);
 
-	std::cout << "MAE  (noisy)  = " << maeIn  << "\n"
-		<< "MSE  (noisy)  = " << mseIn  << "\n"
-		<< "MAE  (NUC)    = " << maeOut << "\n"
-		<< "MSE  (NUC)    = " << mseOut << "\n";
+	std::cout 
+		<< "MAE:  " << maeIn  << " -> " << maeOut  << "\n"
+		<< "MSE:  " << mseIn  << " -> " << mseOut  << "\n"
+		<< "PSNR: " << psnrIn << " -> " << psnrOut << "\n";
 
 	cv::imwrite("input_0.png",     toU8(stream.at(0)));
 	cv::imwrite("noisy_0.png",     toU8(noisy.at(0)));
