@@ -2,31 +2,58 @@
 
 #include "core/frame_transformer.hpp"
 
+#include <limits>
+#include <string>
 #include <vector>
 
 namespace irfilter {
 
-	class QuantileNUC : public FrameTransformer {
-		public:
-			struct Params {
-				int num_quantiles = 16;   // N: число интервалов, маркеров N+1
-				int max_frames    = 0;    // сколько кадров использовать для оценки (0 = все)
-			};
+    class QuantileNUC : public FrameTransformer {
+        public:
+            struct Params {
+                int    num_quantiles = 7;    // N — число квантилей
+                int    warmup_frames = 800;     // 0 = полностью онлайн с 0-го кадра
+                double eta0 = 0.005; // η в нормированном домене [0,1]
+                double eta_T = 800;
+				int quantile_step = 1;
 
-			explicit QuantileNUC(const FrameSource& source);
-			QuantileNUC(const FrameSource& source, Params params);
+				int    reference_rows = 3;
 
-		protected:
-			cv::Mat transform(const cv::Mat& frame, std::size_t index) const override;
+                // Опционально: зафиксировать глобальный диапазон
+                double global_min    = std::numeric_limits<double>::quiet_NaN();
+                double global_max    = std::numeric_limits<double>::quiet_NaN();
 
-		private:
-			void initialize();
+                std::string dump_dir;
+            };
 
-			Params params_;
-			int W_ = 0, H_ = 0;
+            explicit QuantileNUC(const FrameSource& source);
+            QuantileNUC(const FrameSource& source, Params params);
 
-			// q_[pix*(N+1) + m] — m-й маркер (квантиль m/N) пикселя pix, по возрастанию
-			std::vector<float> q_;
-	};
+            int  warmupFrames()    const { return consumed_warmup_; }
+            bool isWarmedUp()      const { return static_cast<int>(size()) <= consumed_warmup_; }
+            void reset();
 
-}
+        protected:
+            cv::Mat transform(const cv::Mat& frame, std::size_t index) const override;
+
+        private:
+            void initQuantilesLinear() const;
+            void updateQuantiles    (const cv::Mat& frame32, int index) const;
+            void computeReference   () const;
+            cv::Mat applyTransform  (const cv::Mat& frame32) const;
+
+            Params params_;
+
+            int    H_ = 0, W_ = 0, N_ = 0;
+            double gmin_ = 0.0, gmax_ = 1.0;
+			int frames_seen_ = 0;
+
+            // mutable — обновляется в const transform()
+            mutable int consumed_warmup_ = 0;   // сколько первых кадров уже «съедено»
+            mutable int last_index_      = -1;
+
+            mutable std::vector<std::vector<std::vector<float>>> quantiles_; // [H][W][N] в [0,1]
+            mutable std::vector<std::vector<float>>              reference_; // [H][N]    в [0,1]
+    };
+
+} // namespace irfilter

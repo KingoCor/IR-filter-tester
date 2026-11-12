@@ -81,7 +81,8 @@ int main(int argc, char** argv) {
 
 	irfilter::DetectorNonuniformityNoise noisy(stream, {}, /*seed=*/42);
 	//irfilter::PaperNUC nuc(noisy);
-	irfilter::ColumnHistNUC nuc(noisy, p);
+	//irfilter::ColumnHistNUC nuc(noisy, p);
+	irfilter::QuantileNUC nuc(noisy);
 	irfilter::MAE mae;
 	irfilter::MSE mse;
 	irfilter::PSNR psnr;

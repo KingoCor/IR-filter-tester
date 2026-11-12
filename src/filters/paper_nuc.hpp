@@ -10,7 +10,7 @@ namespace irfilter {
 	class PaperNUC : public FrameTransformer {
 		public:
 			struct Params {
-				int    frame_buff_size = 360;
+				int    frame_buff_size = 120;
 				int    block_size_L = 20;
 				double segment_threshold = 10.0 / 4095.0;
 
